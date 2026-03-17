@@ -272,7 +272,7 @@ img { max-width: 100%; display: block; }
     right: 0;
     bottom: 0;
     height: 100vh;
-    background: var(--forest) !important; /* Mobile menu goes green */
+    background: var(--warm-white) !important; /* Mobile menu goes green */
     flex-direction: column;
     justify-content: center; /* Centers links vertically */
     align-items: center;
