@@ -378,10 +378,17 @@
 
 
 // ============================================
-// SMART GARDEN ASSISTANT CHAT
+// SMART GARDEN ASSISTANT CHAT — via Cloudflare Worker
 // ============================================
 
 (function initChat() {
+
+  // 🔗 Paste your deployed Cloudflare Worker URL here
+  // e.g. 'https://henriquez-chat.yoursubdomain.workers.dev'
+  const WORKER_URL = 'https://henriquez.nanakwamedickson62.workers.dev';
+
+  const conversationHistory = []; // multi-turn memory
+
   const bubble     = document.querySelector('.chat-bubble');
   const panel      = document.querySelector('.chat-panel');
   const closeBtn   = document.querySelector('.chat-close');
@@ -398,38 +405,39 @@
 
   if (closeBtn) closeBtn.addEventListener('click', () => panel.classList.remove('open'));
 
-  const faqs = [
-    { keys: ['prune','trim','cut roses','rose'],           answer: 'Great question! 🌹 Roses should be pruned in early spring (late February–March in Northern Virginia) when forsythia blooms. Remove dead wood, shape for airflow, and always cut at a 45° angle above an outward-facing bud. Deadhead throughout summer to encourage new blooms.' },
-    { keys: ['water','irrigation','watering','how often'], answer: 'Most Northern Virginia lawns need about 1 inch of water per week. 💧 Water deeply 2–3 times a week rather than daily shallow watering. Early morning (before 10am) is best to prevent fungal issues. Our smart irrigation systems can automate this perfectly!' },
-    { keys: ['fertilize','fertilizer','feed lawn','lawn food'], answer: 'In Northern Virginia, fertilize cool-season grasses (fescue, bluegrass) in early fall (September) and spring (April). Use a slow-release nitrogen fertilizer. 🌱 Avoid fertilizing in the heat of summer — it stresses the grass.' },
-    { keys: ['mulch','mulching'],                          answer: 'Apply 2–3 inches of mulch around trees and beds in spring and fall. 🍂 Keep mulch 3 inches away from tree trunks to prevent rot. Shredded hardwood or wood chip mulch is ideal for the Sterling, VA climate.' },
-    { keys: ['aerate','aeration','core aerate'],           answer: 'Core aeration is best done in early fall (September–October) for cool-season lawns in Northern Virginia. This relieves compaction, improves drainage, and helps nutrients reach roots. 🌿 Overseed immediately after for best results!' },
-    { keys: ['weed','weeds','dandelion','crabgrass'],      answer: 'Apply pre-emergent herbicide in early spring (when forsythia blooms) to prevent crabgrass. For broadleaf weeds, spot-treat with post-emergent herbicide in fall. 🌼 A healthy, thick lawn is your best defense — we can help!' },
-    { keys: ['service area','areas','do you serve','where'], answer: 'We serve Sterling, Ashburn, Leesburg, Herndon, Reston, Great Falls, McLean, Centreville, Manassas, and surrounding Loudoun and Fairfax County areas! 📍 Give us a call at 571-691-2176 to confirm your location.' },
-    { keys: ['price','cost','how much','quote','estimate'], answer: 'Every project is unique, so we offer free personalized estimates! 📋 Our prices are competitive and we offer transparent pricing with no surprises. <a href="estimate.html">Get your free estimate here</a> or WhatsApp us at 571-691-2176!' },
-    { keys: ['contact','phone','email','reach','call'],    answer: 'You can reach us at 📞 571-691-2176 (call or WhatsApp), or email <a href="mailto:henriquezlandscaping@outlook.com">henriquezlandscaping@outlook.com</a>. We respond within 24 hours!' },
-    { keys: ['hello','hi','hey','help','start'],           answer: 'Hello! 👋 I\'m Flora, your Smart Garden Assistant. Ask me anything about lawn care, landscaping, or gardening in Northern Virginia! I can also help you connect with our team for bigger projects.' },
-  ];
+  async function getBotResponse(userMessage) {
+    // Add user message to history
+    conversationHistory.push({
+      role: 'user',
+      parts: [{ text: userMessage }]
+    });
 
-  const complexTriggers = ['patio','hardscaping','driveway','retaining wall','install','build','design','drainage','irrigation system'];
+    const response = await fetch(WORKER_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ history: conversationHistory })
+    });
 
-  function getBotResponse(msg) {
-    const lower = msg.toLowerCase();
-    for (const trigger of complexTriggers) {
-      if (lower.includes(trigger)) {
-        return `That sounds like an exciting project! 🏗️ For ${trigger} work, our pros can achieve incredible results. Would you like to <a href="work.html">see our project gallery</a> or <a href="estimate.html">book a free consultation</a>? Our team will visit, assess, and provide a detailed quote!`;
-      }
+    if (!response.ok) {
+      throw new Error(`Worker responded with ${response.status}`);
     }
-    for (const faq of faqs) {
-      if (faq.keys.some(k => lower.includes(k))) return faq.answer;
-    }
-    return `Great question! 🌿 For the most accurate advice for your specific yard in Northern Virginia, our experts would love to help. <a href="estimate.html">Get a free estimate</a> or WhatsApp us at <a href="https://wa.me/15716912176" target="_blank">571-691-2176</a>. We typically respond within hours!`;
+
+    const data = await response.json();
+    const reply = data.reply || "I'm sorry, I didn't get a response. Please try again!";
+
+    // Save assistant reply to history for next turn
+    conversationHistory.push({
+      role: 'model',
+      parts: [{ text: reply }]
+    });
+
+    return reply;
   }
 
   function addMessage(text, isUser = false) {
     const msg = document.createElement('div');
     msg.className = `chat-msg ${isUser ? 'user' : 'bot'}`;
-    msg.innerHTML = text;
+    msg.innerHTML = text.replace(/\n/g, '<br>');
     messagesEl.appendChild(msg);
     messagesEl.scrollTop = messagesEl.scrollHeight;
     return msg;
@@ -444,22 +452,39 @@
     return indicator;
   }
 
-  function handleSend() {
+  function disableInput(disabled) {
+    input.disabled = disabled;
+    sendBtn.disabled = disabled;
+  }
+
+  async function handleSend() {
     const text = input.value.trim();
     if (!text) return;
+
     input.value = '';
     addMessage(text, true);
+    disableInput(true);
+
     const typing = showTyping();
-    setTimeout(() => {
+
+    try {
+      const reply = await getBotResponse(text);
       typing.remove();
-      addMessage(getBotResponse(text));
-    }, 900 + Math.random() * 500);
+      addMessage(reply);
+    } catch (error) {
+      console.error('Chat error:', error);
+      typing.remove();
+      addMessage("Sorry, I'm having trouble connecting right now. 🌿 Please reach us directly at <a href='https://wa.me/15716912176' target='_blank'>571-691-2176</a>!");
+    } finally {
+      disableInput(false);
+      input.focus();
+    }
   }
 
   sendBtn?.addEventListener('click', handleSend);
   input?.addEventListener('keydown', e => { if (e.key === 'Enter') handleSend(); });
-})();
 
+})();
 
 // ============================================
 // REVEAL ANIMATIONS ON SCROLL
