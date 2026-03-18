@@ -171,6 +171,7 @@
 
 // ============================================
 // HERO CAROUSEL
+// Text animates in only on first visit per session
 // ============================================
 
 (function initCarousel() {
@@ -202,6 +203,19 @@
   const badgeEl = document.querySelector('.hero-badge');
   const titleEl = document.querySelector('.hero-title');
   const subEl   = document.querySelector('.hero-subtitle');
+
+  // If returning visit this session, remove the CSS entrance animations
+  // so text is immediately visible instead of fading in from translateY
+  if (sessionStorage.getItem('hero_played')) {
+    const heroEls = document.querySelectorAll('.hero-badge, .hero-title, .hero-subtitle, .hero-buttons, .carousel-dots, .scroll-hint');
+    heroEls.forEach(el => {
+      el.style.animation = 'none';
+      el.style.opacity   = '1';
+      el.style.transform = 'none';
+    });
+  } else {
+    sessionStorage.setItem('hero_played', '1');
+  }
 
   function goTo(idx) {
     slides[current].classList.remove('active');
@@ -340,11 +354,20 @@
 
 // ============================================
 // STATS COUNTER ANIMATION
+// Only animates on first visit per session
 // ============================================
 
 (function initCounters() {
   const counters = document.querySelectorAll('.stat-number[data-count]');
   if (!counters.length) return;
+
+  // If already played this session, show final values immediately and stop
+  if (sessionStorage.getItem('counters_played')) {
+    counters.forEach(el => {
+      el.textContent = el.dataset.count + (el.dataset.suffix || '');
+    });
+    return;
+  }
 
   const observer = new IntersectionObserver(entries => {
     entries.forEach(entry => {
@@ -366,6 +389,9 @@
   }, { threshold: 0.5 });
 
   counters.forEach(c => observer.observe(c));
+
+  // Mark as played so returning visits skip the animation
+  sessionStorage.setItem('counters_played', '1');
 })();
 
 
